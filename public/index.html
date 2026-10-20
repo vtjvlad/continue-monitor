@@ -1,65 +1,88 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>Continue Monitor</title>
-  <link rel="stylesheet" href="./styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continue Monitor Dashboard</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
 </head>
 <body>
-  <main class="container">
-    <header>
-      <div>
-        <h1>Continue Monitor</h1>
-        <p class="muted">Мониторинг сессий и процессов</p>
-      </div>
-      <button id="refresh">Обновить</button>
-    </header>
+    <div class="app-container">
+        <!-- Меню контроля -->
+        <header class="control-menu">
+            <div class="brand">
+                <h1>Continue Monitor</h1>
+            </div>
+            <div class="controls-right">
+                <div class="api-status-badge" id="apiStatusBadge">
+                    <span class="status-dot"></span>
+                    <span id="apiStatusText">Проверка API...</span>
+                </div>
+                <div class="last-update">
+                    Обновлено: <span id="lastUpdateTime">—</span>
+                </div>
+                <button id="refreshBtn" class="btn-icon" title="Обновить вручную">🔄</button>
+                <button id="tokenBtn" class="btn-secondary" title="Сменить токен">🔑 Токен</button>
+            </div>
+        </header>
 
-    <section id="login" class="panel">
-      <h2>Авторизация</h2>
-      <form id="login-form">
-        <input id="token" type="password" placeholder="Токен доступа"
-          autocomplete="current-password" required>
-        <button type="submit">Войти</button>
-      </form>
-      <p id="login-error" class="error"></p>
-    </section>
+        <!-- Контейнер уведомлений -->
+        <div id="notificationsContainer" class="notifications-container"></div>
 
-    <section id="dashboard" hidden>
-      <div class="stats">
-        <article class="panel">
-          <span class="muted">Сессии в истории</span>
-          <strong id="session-count">—</strong>
-        </article>
-        <article class="panel">
-          <span class="muted">Процессы CLI</span>
-          <strong id="process-count">—</strong>
-        </article>
-        <article class="panel">
-          <span class="muted">Мониторинг</span>
-          <strong id="monitor-state">—</strong>
-        </article>
-      </div>
+        <!-- Основной дашборд -->
+        <main class="dashboard-grid">
+            <!-- Главный виджет: Статус и метрики текущих сессий и процессов -->
+            <section class="card main-metric-card">
+                <div class="card-header">
+                    <h2>Текущее состояние</h2>
+                    <button id="toggleDetailsBtn" class="btn-text">Развернуть детали ▼</button>
+                </div>
+                
+                <!-- Метрики -->
+                <div class="metrics-row">
+                    <div class="metric-box">
+                        <span class="metric-value" id="activeProcessesCount">0</span>
+                        <span class="metric-label">Активные процессы</span>
+                    </div>
+                    <div class="metric-box">
+                        <span class="metric-value" id="activeSessionsCount">0</span>
+                        <span class="metric-label">Сессии (всего)</span>
+                    </div>
+                </div>
 
-      <section class="panel">
-        <h2>Сессии Continue</h2>
-        <p class="muted">Наличие сессии в истории не означает, что она выполняется.</p>
-        <div id="sessions" class="items"></div>
-      </section>
+                <!-- Подробности при развороте -->
+                <div id="detailedView" class="detailed-view collapsed">
+                    <div class="detail-section">
+                        <h3>Активные процессы Continue CLI</h3>
+                        <div id="processesList" class="items-list">
+                            <p class="empty-text">Нет активных процессов</p>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>Текущие сессии</h3>
+                        <div id="currentSessionsList" class="items-list">
+                            <p class="empty-text">Нет доступных сессий</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-      <section class="panel">
-        <h2>Процессы Continue CLI</h2>
-        <div id="processes" class="items"></div>
-      </section>
-
-      <footer class="muted">
-        <span id="updated">Ожидание данных…</span>
-        <button id="logout" class="secondary">Выйти</button>
-      </footer>
-    </section>
-  </main>
-  <script src="./app.js" defer></script>
+            <!-- История сессий (компактно свернута, разворачиваемый див) -->
+            <section class="card history-card">
+                <details id="historyDetails">
+                    <summary class="history-summary">
+                        <span>📖 История сессий</span>
+                        <span class="badge" id="historyCountBadge">0</span>
+                    </summary>
+                    <div class="history-content">
+                        <div id="historySessionsList" class="items-list history-list">
+                            <p class="empty-text">История пуста</p>
+                        </div>
+                    </div>
+                </details>
+            </section>
+        </main>
+    </div>
 </body>
 </html>

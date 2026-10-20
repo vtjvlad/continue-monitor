@@ -1,160 +1,215 @@
-const $ = (id) => document.getElementById(id);
+const TOKEN_STORAGE_KEY = 'continue_monitor_token';
 
-let token = sessionStorage.getItem('continueMonitorToken') || '';
-let timer = null;
+let token = localStorage.getItem(TOKEN_STORAGE_KEY);
+let previousProcesses = new Set();
+let previousSessions = new Set();
+let isFirstFetch = true;
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;',
-    '"': '&quot;', "'": '&#39;',
-  })[char]);
-}
+// DOM Elements
+const apiStatusBadge = document.getElementById('apiStatusBadge');
+const apiStatusText = document.getElementById('apiStatusText');
+const lastUpdateTime = document.getElementById('lastUpdateTime');
+const refreshBtn = document.getElementById('refreshBtn');
+const tokenBtn = document.getElementById('tokenBtn');
+const toggleDetailsBtn = document.getElementById('toggleDetailsBtn');
+const detailedView = document.getElementById('detailedView');
 
-function showLogin(message = '') {
-  $('login').hidden = false;
-  $('dashboard').hidden = true;
-  $('login-error').textContent = message;
-}
+const activeProcessesCount = document.getElementById('activeProcessesCount');
+const activeSessionsCount = document.getElementById('activeSessionsCount');
+const processesList = document.getElementById('processesList');
+const currentSessionsList = document.getElementById('currentSessionsList');
+const historySessionsList = document.getElementById('historySessionsList');
+const historyCountBadge = document.getElementById('historyCountBadge');
+const notificationsContainer = document.getElementById('notificationsContainer');
 
-function showDashboard() {
-  $('login').hidden = true;
-  $('dashboard').hidden = false;
-}
-
-function dateText(value) {
-  if (value === null || value === undefined || value === '') {
-    return 'Неизвестно';
-  }
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? 'Неизвестно'
-    : date.toLocaleString();
-}
-
-function renderSessions(data) {
-  $('session-count').textContent = data.available ? data.count : 'Ошибка';
-
-  if (!data.available) {
-    $('sessions').innerHTML =
-      `<p class="error">Не удалось прочитать индекс сессий: ${escapeHtml(data.error)}</p>`;
-    return;
-  }
-
-  if (!data.sessions.length) {
-    $('sessions').innerHTML = '<p class="muted">Сессий нет.</p>';
-    return;
-  }
-
-  $('sessions').innerHTML = data.sessions.map((session) => `
-    <article class="item">
-      <h3>${escapeHtml(session.title || 'Без названия')}</h3>
-      <p class="muted">ID: <code>${escapeHtml(session.id)}</code></p>
-      <p>Рабочая папка: <code>${escapeHtml(session.workspaceDirectory || 'Неизвестно')}</code></p>
-      <p>Создана: ${escapeHtml(dateText(session.dateCreated))}</p>
-      <p>Сообщений: ${session.messageCount ?? 'Неизвестно'}</p>
-      <span class="badge">Сохранённая сессия</span>
-    </article>
-  `).join('');
-}
-
-function renderProcesses(data) {
-  $('process-count').textContent = data.available ? data.processes.length : 'Ошибка';
-
-  if (!data.available) {
-    $('processes').innerHTML =
-      `<p class="error">Ошибка проверки процессов: ${escapeHtml(data.error)}</p>`;
-    return;
-  }
-
-  if (!data.processes.length) {
-    $('processes').innerHTML =
-      '<p class="muted">Процессы Continue CLI не обнаружены.</p>';
-    return;
-  }
-
-  $('processes').innerHTML = data.processes.map((process) => `
-    <article class="item">
-      <h3>PID ${process.pid}</h3>
-      <p>Пользователь: ${escapeHtml(process.user)}</p>
-      <p>Состояние ОС: <code>${escapeHtml(process.state)}</code></p>
-      <p>Время работы: ${escapeHtml(process.elapsed)}</p>
-      <p>Рабочая папка: <code>${escapeHtml(process.cwd || 'Недоступна')}</code></p>
-    </article>
-  `).join('');
-}
-
-async function refresh() {
-  if (!token) return;
-
-  try {
-    const response = await fetch('./api/status/', {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
-
-    if (response.status === 401) {
-      token = '';
-      sessionStorage.removeItem('continueMonitorToken');
-      clearInterval(timer);
-      showLogin('Токен недействителен или истёк.');
-      return;
+// Управление токеном
+function ensureToken() {
+    if (!token) {
+        token = prompt('Введите MONITOR_TOKEN для доступа к Continue Monitor:');
+        if (token) {
+            localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+        } else {
+            alert('Токен обязателен для работы мониторинга.');
+        }
     }
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    showDashboard();
-    renderSessions(data.sessions);
-    renderProcesses(data.processes);
-
-    const healthy = data.sessions.available && data.processes.available;
-    $('monitor-state').textContent = healthy ? 'Доступен' : 'Частично';
-    $('updated').textContent = `Обновлено: ${dateText(data.collectedAt)}`;
-  } catch (error) {
-    $('monitor-state').textContent = 'Ошибка';
-    $('updated').textContent = `Ошибка обновления: ${error.message}`;
-  }
+    return token;
 }
 
-$('login-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  token = $('token').value.trim();
-
-  try {
-    const response = await fetch('./api/health', {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      showLogin('Не удалось войти. Проверь токен.');
-      return;
+tokenBtn.addEventListener('click', () => {
+    const newToken = prompt('Введите новый MONITOR_TOKEN:', token || '');
+    if (newToken !== null) {
+        token = newToken.trim();
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        fetchStatus();
     }
-
-    sessionStorage.setItem('continueMonitorToken', token);
-    $('token').value = '';
-    showDashboard();
-    await refresh();
-    clearInterval(timer);
-    timer = setInterval(refresh, 5000);
-  } catch {
-    showLogin('Сервер недоступен.');
-  }
 });
 
-$('refresh').addEventListener('click', refresh);
-
-$('logout').addEventListener('click', () => {
-  clearInterval(timer);
-  token = '';
-  sessionStorage.removeItem('continueMonitorToken');
-  showLogin();
+// Развертывание деталей дашборда
+toggleDetailsBtn.addEventListener('click', () => {
+    const isCollapsed = detailedView.classList.toggle('collapsed');
+    toggleDetailsBtn.textContent = isCollapsed ? 'Развернуть детали ▼' : 'Свернуть детали ▲';
 });
 
-if (token) {
-  showDashboard();
-  refresh();
-  timer = setInterval(refresh, 5000);
-} else {
-  showLogin();
+// Уведомления (тосты)
+function showNotification(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    notificationsContainer.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
 }
+
+// Запрос статуса
+async function fetchStatus() {
+    const currentToken = ensureToken();
+    if (!currentToken) return;
+
+    try {
+        const response = await fetch('./api/status/', {
+            headers: {
+                'Authorization': `Bearer ${currentToken}`
+            }
+        });
+
+        if (response.status === 401) {
+            setApiStatus(false, 'Ошибка авторизации (401)');
+            localStorage.removeItem(TOKEN_STORAGE_KEY);
+            token = null;
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setApiStatus(true, 'В сети');
+        updateDashboard(data);
+
+        lastUpdateTime.textContent = new Date(data.collectedAt).toLocaleTimeString();
+
+    } catch (error) {
+        setApiStatus(false, 'Нет связи');
+        console.error('Fetch status error:', error);
+    }
+}
+
+function setApiStatus(isOnline, text) {
+    apiStatusBadge.className = `api-status-badge ${isOnline ? 'online' : 'offline'}`;
+    apiStatusText.textContent = text;
+}
+
+// Обновление интерфейса дашборда и диффинг изменений
+function updateDashboard(data) {
+    const processes = data.processes?.processes || [];
+    const sessions = data.sessions?.sessions || [];
+
+    // Обновляем метрики
+    activeProcessesCount.textContent = processes.length;
+    activeSessionsCount.textContent = sessions.length;
+
+    // Сеты текущих PID и Session ID для проверки появления/завершения
+    const currentPIDs = new Set(processes.map(p => p.pid));
+    const currentSessionIDs = new Set(sessions.map(s => s.id));
+
+    if (!isFirstFetch) {
+        // Проверка процессов
+        for (const pid of currentPIDs) {
+            if (!previousProcesses.has(pid)) {
+                showNotification(`🚀 Запущен новый процесс Continue CLI (PID: ${pid})`, 'success');
+            }
+        }
+        for (const pid of previousProcesses) {
+            if (!currentPIDs.has(pid)) {
+                showNotification(`🛑 Процесс Continue CLI завершен (PID: ${pid})`, 'danger');
+            }
+        }
+
+        // Проверка сессий
+        for (const id of currentSessionIDs) {
+            if (!previousSessions.has(id)) {
+                const sess = sessions.find(s => s.id === id);
+                showNotification(`✨ Появилась новая сессия: "${sess?.title || id}"`, 'success');
+            }
+        }
+        for (const id of previousSessions) {
+            if (!currentSessionIDs.has(id)) {
+                showNotification(`📁 Сессия завершена / удалена (ID: ${id.slice(0, 8)}...)`, 'danger');
+            }
+        }
+    }
+
+    previousProcesses = currentPIDs;
+    previousSessions = currentSessionIDs;
+    isFirstFetch = false;
+
+    // Рендер процессов
+    if (processes.length === 0) {
+        processesList.innerHTML = '<p class="empty-text">Нет активных процессов</p>';
+    } else {
+        processesList.innerHTML = processes.map(p => `
+            <div class="item-card">
+                <div class="item-title">PID: ${p.pid} (${p.executable})</div>
+                <div class="item-meta">
+                    <span>⏱ Работает: ${p.elapsed}</span>
+                    <span>👤 Пользователь: ${p.user}</span>
+                    <span>📂 Директория: ${p.cwd || 'недоступна'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Рендер текущих сессий (в деталях)
+    if (sessions.length === 0) {
+        currentSessionsList.innerHTML = '<p class="empty-text">Нет доступных сессий</p>';
+    } else {
+        currentSessionsList.innerHTML = sessions.slice(0, 5).map(s => `
+            <div class="item-card">
+                <div class="item-title">${escapeHtml(s.title)}</div>
+                <div class="item-meta">
+                    <span>📅 ${s.dateCreated ? new Date(s.dateCreated).toLocaleString() : 'дата не указана'}</span>
+                    <span>💬 Сообщений: ${s.messageCount ?? 'N/A'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Рендер истории сессий (в отдельном разворачивающемся блоке)
+    historyCountBadge.textContent = sessions.length;
+    if (sessions.length === 0) {
+        historySessionsList.innerHTML = '<p class="empty-text">История пуста</p>';
+    } else {
+        historySessionsList.innerHTML = sessions.map(s => `
+            <div class="item-card">
+                <div class="item-title">${escapeHtml(s.title)}</div>
+                <div class="item-meta">
+                    <span>ID: ${s.id}</span>
+                    <span>📅 ${s.dateCreated ? new Date(s.dateCreated).toLocaleString() : '—'}</span>
+                    <span>💬 Сообщений: ${s.messageCount ?? 'N/A'}</span>
+                    <span>📂 ${s.workspaceDirectory || '—'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    );
+}
+
+// События
+refreshBtn.addEventListener('click', fetchStatus);
+
+// Инициализация при загрузке
+ensureToken();
+fetchStatus();
+
+// Автообновление каждые 6 секунд
+setInterval(fetchStatus, 6000);
