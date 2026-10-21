@@ -12,4 +12,3 @@ router.get('/', async (_req, res, next) => {
   }
 });
 
-exq :q9port default router;
