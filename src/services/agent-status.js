@@ -2,10 +2,15 @@ import {
   getSessionMetrics,
   listSessionFilesMeta,
   buildOverlaysFromSignals,
+  buildOutcomesFromSignals,
 } from '../adapters/continue-session-metrics.js';
 
 function emptyOverlays() {
   return buildOverlaysFromSignals(null, { processCount: 0 });
+}
+
+function emptyOutcomes() {
+  return buildOutcomesFromSignals(null);
 }
 
 const STATUS_LABELS = {
@@ -361,7 +366,23 @@ function emptyActive(processCount = 0) {
     activity: [],
     ageMs: null,
     overlays: emptyOverlays(),
+    outcomes: emptyOutcomes(),
   };
+}
+
+function resolveOutcomes({ status, metrics, sessionFresh }) {
+  if (!metrics?.available) return emptyOutcomes();
+
+  const turnComplete = status.agentStatus === 'waiting'
+    || status.agentStatus === 'idle'
+    || (
+      !sessionFresh
+      && status.agentStatus !== 'thinking'
+      && !(metrics.openTools || []).length
+      && metrics.lastRole === 'assistant'
+    );
+
+  return buildOutcomesFromSignals(metrics, { turnComplete });
 }
 
 export async function buildActiveSnapshot({ sessions, processes }) {
@@ -379,6 +400,7 @@ export async function buildActiveSnapshot({ sessions, processes }) {
   const overlays = metrics?.available
     ? buildOverlaysFromSignals(metrics, { sessionFresh, processCount })
     : emptyOverlays();
+  const outcomes = resolveOutcomes({ status, metrics, sessionFresh });
 
   if (!metrics?.available) {
     return {
@@ -387,6 +409,7 @@ export async function buildActiveSnapshot({ sessions, processes }) {
       elapsed: process?.elapsed || null,
       workspaceDirectory: process?.cwd || null,
       overlays,
+      outcomes,
     };
   }
 
@@ -411,5 +434,6 @@ export async function buildActiveSnapshot({ sessions, processes }) {
     activity: metrics.activity || [],
     ageMs: metrics.ageMs,
     overlays,
+    outcomes,
   };
 }

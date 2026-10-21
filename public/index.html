@@ -42,40 +42,50 @@
                     </div>
                 </div>
 
-                <div class="phase-track" id="phaseTrack" aria-label="Фазы работы агента">
-                    <div class="phase-step" data-phase="waiting"><span>Ожидает</span></div>
-                    <div class="phase-step" data-phase="thinking"><span>Размышляет</span></div>
-                    <div class="phase-step" data-phase="planning"><span>Планирует</span></div>
-                    <div class="phase-step" data-phase="reading"><span>Читает</span></div>
-                    <div class="phase-step" data-phase="analyzing"><span>Анализирует</span></div>
-                    <div class="phase-step" data-phase="aligning"><span>Согласует</span></div>
-                    <div class="phase-step" data-phase="awaiting_confirmation"><span>Подтверждение</span></div>
-                    <div class="phase-step" data-phase="editing"><span>Редактирует</span></div>
-                    <div class="phase-step" data-phase="running_commands"><span>Команды</span></div>
-                    <div class="phase-step" data-phase="responding"><span>Отвечает</span></div>
+                <div class="phase-stack" id="phaseStack" aria-label="Фазы и параллельные режимы">
+                    <div class="overlays-underlay" id="overlaysUnderlay" aria-hidden="true">
+                        <div class="overlays-row" id="overlaysRow">
+                            <div class="overlay-chip" data-overlay="compacting" title="Сжатие контекста">
+                                <span class="overlay-dot"></span>
+                                <span class="overlay-name">Сжатие</span>
+                            </div>
+                            <div class="overlay-chip" data-overlay="subagent" title="Вложенный субагент">
+                                <span class="overlay-dot"></span>
+                                <span class="overlay-name">Субагент</span>
+                            </div>
+                            <div class="overlay-chip" data-overlay="skills" title="Skills">
+                                <span class="overlay-dot"></span>
+                                <span class="overlay-name">Skills</span>
+                            </div>
+                            <div class="overlay-chip" data-overlay="mcp" title="MCP tools">
+                                <span class="overlay-dot"></span>
+                                <span class="overlay-name">MCP</span>
+                            </div>
+                        </div>
+                        <p class="overlays-detail" id="overlaysDetail"></p>
+                    </div>
+                    <div class="phase-track" id="phaseTrack" aria-label="Текущая фаза агента">
+                        <div class="phase-step" data-phase="waiting"><span>Ожидает</span></div>
+                        <div class="phase-step" data-phase="thinking"><span>Размышляет</span></div>
+                        <div class="phase-step" data-phase="planning"><span>Планирует</span></div>
+                        <div class="phase-step" data-phase="reading"><span>Читает</span></div>
+                        <div class="phase-step" data-phase="analyzing"><span>Анализирует</span></div>
+                        <div class="phase-step" data-phase="aligning"><span>Согласует</span></div>
+                        <div class="phase-step" data-phase="awaiting_confirmation"><span>Подтверждение</span></div>
+                        <div class="phase-step" data-phase="editing"><span>Редактирует</span></div>
+                        <div class="phase-step" data-phase="running_commands"><span>Команды</span></div>
+                        <div class="phase-step" data-phase="responding"><span>Отвечает</span></div>
+                    </div>
                 </div>
 
-                <div class="overlays-panel" aria-label="Параллельные режимы">
-                    <div class="overlays-label">Параллельно</div>
-                    <div class="overlays-row" id="overlaysRow">
-                        <div class="overlay-chip" data-overlay="compacting" title="Сжатие контекста">
-                            <span class="overlay-dot"></span>
-                            <span class="overlay-name">Сжатие</span>
-                        </div>
-                        <div class="overlay-chip" data-overlay="subagent" title="Вложенный субагент">
-                            <span class="overlay-dot"></span>
-                            <span class="overlay-name">Субагент</span>
-                        </div>
-                        <div class="overlay-chip" data-overlay="skills" title="Skills">
-                            <span class="overlay-dot"></span>
-                            <span class="overlay-name">Skills</span>
-                        </div>
-                        <div class="overlay-chip" data-overlay="mcp" title="MCP tools">
-                            <span class="overlay-dot"></span>
-                            <span class="overlay-name">MCP</span>
-                        </div>
+                <div class="request-outcomes-panel" aria-label="Исход запроса">
+                    <div class="outcomes-label">Запрос</div>
+                    <div class="outcomes-row" id="requestOutcomesRow">
+                        <div class="outcome-chip" data-outcome="ready"><span class="outcome-dot"></span><span>Ready</span></div>
+                        <div class="outcome-chip" data-outcome="canceled"><span class="outcome-dot"></span><span>Canceled</span></div>
+                        <div class="outcome-chip" data-outcome="error"><span class="outcome-dot"></span><span>Error</span></div>
                     </div>
-                    <p class="overlays-detail" id="overlaysDetail"></p>
+                    <p class="outcomes-detail" id="requestOutcomesDetail"></p>
                 </div>
 
                 <div class="agent-grid">
@@ -115,14 +125,38 @@
                     </div>
                 </div>
 
-                <div class="activity-panel">
-                    <div class="activity-header">
-                        <h3>Лента действий</h3>
-                        <span class="badge" id="activityCountBadge">0</span>
+                <div class="activity-layout">
+                    <div class="activity-panel">
+                        <div class="activity-header">
+                            <h3>Лента действий</h3>
+                            <span class="badge" id="activityCountBadge">0</span>
+                        </div>
+                        <div id="activityFeed" class="activity-feed">
+                            <p class="empty-text">Нет недавних tool-вызовов</p>
+                        </div>
                     </div>
-                    <div id="activityFeed" class="activity-feed">
-                        <p class="empty-text">Нет недавних tool-вызовов</p>
-                    </div>
+
+                    <aside class="step-outcomes-panel" aria-label="Исходы шагов">
+                        <div class="outcomes-label">Шаг</div>
+                        <div class="outcomes-row outcomes-row-vertical" id="stepOutcomesRow">
+                            <div class="outcome-chip" data-outcome="ready">
+                                <span class="outcome-dot"></span>
+                                <span class="outcome-name">Ready</span>
+                                <span class="outcome-count" data-count="ready">0</span>
+                            </div>
+                            <div class="outcome-chip" data-outcome="canceled">
+                                <span class="outcome-dot"></span>
+                                <span class="outcome-name">Canceled</span>
+                                <span class="outcome-count" data-count="canceled">0</span>
+                            </div>
+                            <div class="outcome-chip" data-outcome="error">
+                                <span class="outcome-dot"></span>
+                                <span class="outcome-name">Error</span>
+                                <span class="outcome-count" data-count="error">0</span>
+                            </div>
+                        </div>
+                        <p class="outcomes-detail" id="stepOutcomesDetail"></p>
+                    </aside>
                 </div>
 
                 <div class="card-footer-actions">

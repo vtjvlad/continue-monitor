@@ -27,9 +27,14 @@ const agentTitle = document.getElementById('agentTitle');
 const agentMeta = document.getElementById('agentMeta');
 const agentPulse = document.getElementById('agentPulse');
 const agentLiveCard = document.getElementById('agentLiveCard');
+const phaseStack = document.getElementById('phaseStack');
 const phaseTrack = document.getElementById('phaseTrack');
 const overlaysRow = document.getElementById('overlaysRow');
 const overlaysDetail = document.getElementById('overlaysDetail');
+const stepOutcomesRow = document.getElementById('stepOutcomesRow');
+const requestOutcomesRow = document.getElementById('requestOutcomesRow');
+const stepOutcomesDetail = document.getElementById('stepOutcomesDetail');
+const requestOutcomesDetail = document.getElementById('requestOutcomesDetail');
 const thinkSnippet = document.getElementById('thinkSnippet');
 const activityFeed = document.getElementById('activityFeed');
 const activityCountBadge = document.getElementById('activityCountBadge');
@@ -41,24 +46,17 @@ const OVERLAY_LABELS = {
     skills: 'Skills',
     mcp: 'MCP',
 };
+const OUTCOME_KEYS = ['ready', 'canceled', 'error'];
+const OUTCOME_LABELS = {
+    ready: 'Ready',
+    canceled: 'Canceled',
+    error: 'Error',
+};
 const processesList = document.getElementById('processesList');
 const currentSessionsList = document.getElementById('currentSessionsList');
 const historySessionsList = document.getElementById('historySessionsList');
 const historyCountBadge = document.getElementById('historyCountBadge');
 const notificationsContainer = document.getElementById('notificationsContainer');
-
-const PHASE_ORDER = [
-    'waiting',
-    'thinking',
-    'planning',
-    'reading',
-    'analyzing',
-    'aligning',
-    'awaiting_confirmation',
-    'editing',
-    'running_commands',
-    'responding',
-];
 
 function playAlertSound() {
     try {
@@ -176,34 +174,76 @@ function toolStatusClass(status) {
 }
 
 function updatePhaseTrack(phase) {
+    if (!phaseTrack) return;
     const steps = phaseTrack.querySelectorAll('.phase-step');
-    const idx = PHASE_ORDER.indexOf(phase);
     steps.forEach((step) => {
-        const stepPhase = step.dataset.phase;
-        const stepIdx = PHASE_ORDER.indexOf(stepPhase);
-        step.classList.toggle('is-active', stepPhase === phase);
-        step.classList.toggle('is-done', idx >= 0 && stepIdx >= 0 && stepIdx < idx);
+        const isActive = step.dataset.phase === phase;
+        step.classList.toggle('is-active', isActive);
+        step.classList.remove('is-done');
     });
 }
 
 function updateOverlays(overlays) {
     const data = overlays || {};
     const activeDetails = [];
+    let anyActive = false;
 
     OVERLAY_KEYS.forEach((key) => {
         const chip = overlaysRow?.querySelector(`[data-overlay="${key}"]`);
         const state = data[key] || { active: false, detail: null };
+        const active = Boolean(state.active);
         if (chip) {
-            chip.classList.toggle('is-active', Boolean(state.active));
+            chip.classList.toggle('is-active', active);
             chip.title = state.detail || OVERLAY_LABELS[key];
         }
-        if (state.active) {
+        if (active) {
+            anyActive = true;
             activeDetails.push(`${OVERLAY_LABELS[key]}: ${state.detail || 'active'}`);
         }
     });
 
+    phaseStack?.classList.toggle('has-overlays', anyActive);
+
     if (overlaysDetail) {
         overlaysDetail.textContent = activeDetails.join(' · ');
+    }
+}
+
+function setOutcomeRow(row, status, counts = null) {
+    if (!row) return;
+    OUTCOME_KEYS.forEach((key) => {
+        const chip = row.querySelector(`[data-outcome="${key}"]`);
+        if (!chip) return;
+        const count = counts && Number.isFinite(counts[key]) ? counts[key] : null;
+        chip.classList.toggle('is-active', key === status);
+        if (count !== null) {
+            chip.classList.toggle('has-count', count > 0);
+            const countEl = chip.querySelector(`[data-count="${key}"]`) || chip.querySelector('.outcome-count');
+            if (countEl) countEl.textContent = String(count);
+        }
+    });
+}
+
+function updateOutcomes(outcomes) {
+    const data = outcomes || {};
+    const step = data.step || { status: null, detail: null, counts: null };
+    const request = data.request || { status: null, detail: null };
+    const counts = step.counts || { ready: 0, canceled: 0, error: 0 };
+
+    setOutcomeRow(stepOutcomesRow, step.status, counts);
+    setOutcomeRow(requestOutcomesRow, request.status);
+
+    if (stepOutcomesDetail) {
+        const total = (counts.ready || 0) + (counts.canceled || 0) + (counts.error || 0);
+        stepOutcomesDetail.textContent = step.detail
+            ? step.detail
+            : (total > 0 ? `завершено шагов: ${total}` : '');
+    }
+
+    if (requestOutcomesDetail) {
+        requestOutcomesDetail.textContent = request.status && request.detail
+            ? request.detail
+            : '';
     }
 }
 
@@ -263,6 +303,7 @@ function updateActiveMetrics(active) {
     agentLiveCard.classList.toggle('is-live', Boolean(a.isResponding));
     updatePhaseTrack(phase === 'idle' ? 'waiting' : phase);
     updateOverlays(a.overlays);
+    updateOutcomes(a.outcomes);
     renderActivity(a.activity);
 
     if (!isFirstFetch && previousStatus && previousStatus !== phase && phase !== 'idle') {

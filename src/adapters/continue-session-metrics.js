@@ -273,6 +273,105 @@ function summarizeTools(tools) {
   return 'other';
 }
 
+function emptyOutcome() {
+  return { status: null, detail: null, counts: { ready: 0, canceled: 0, error: 0 } };
+}
+
+function emptyOutcomeCounts() {
+  return { ready: 0, canceled: 0, error: 0 };
+}
+
+function normalizeToolOutcomeStatus(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'errored' || s === 'error' || s === 'failed') return 'error';
+  if (s === 'canceled' || s === 'cancelled') return 'canceled';
+  if (s === 'done' || s === 'success' || s === 'succeeded') return 'ready';
+  return null;
+}
+
+function countStepOutcomes(tools) {
+  const counts = emptyOutcomeCounts();
+  for (const tool of tools || []) {
+    const status = normalizeToolOutcomeStatus(tool?.status);
+    if (status) counts[status] += 1;
+  }
+  return counts;
+}
+
+/** Исходы шага (счётчики + текущий) и запроса (tools с последнего user). */
+export function buildOutcomesFromSignals(signals, { turnComplete = false } = {}) {
+  const step = emptyOutcome();
+  const request = emptyOutcome();
+
+  if (!signals) {
+    return { step, request };
+  }
+
+  const openTools = signals.openTools || [];
+  const lastStepTools = signals.lastStepTools || [];
+  const turnTools = Array.isArray(signals.turnTools) ? signals.turnTools : lastStepTools;
+  step.counts = countStepOutcomes(turnTools);
+
+  // Шаг: пока tool открыт — исход не фиксируем; иначе по последнему завершённому.
+  if (openTools.length === 0 && lastStepTools.length > 0) {
+    const last = lastStepTools[lastStepTools.length - 1];
+    const status = normalizeToolOutcomeStatus(last.status);
+    if (status) {
+      step.status = status;
+      step.detail = last.target
+        ? `${last.name} → ${last.target}`
+        : `${last.name}: ${last.status}`;
+    }
+  } else if (openTools.length > 0) {
+    const badOpen = openTools.find((t) => normalizeToolOutcomeStatus(t.status) === 'error'
+      || normalizeToolOutcomeStatus(t.status) === 'canceled');
+    if (badOpen) {
+      step.status = normalizeToolOutcomeStatus(badOpen.status);
+      step.detail = badOpen.target
+        ? `${badOpen.name} → ${badOpen.target}`
+        : `${badOpen.name}: ${badOpen.status}`;
+    }
+  } else if (step.counts.error > 0) {
+    step.status = 'error';
+  } else if (step.counts.canceled > 0) {
+    step.status = 'canceled';
+  } else if (step.counts.ready > 0) {
+    step.status = 'ready';
+  }
+
+  // Запрос: только когда ход завершён (ожидание / нет открытых tools после ответа).
+  if (turnComplete && openTools.length === 0) {
+    const errored = turnTools.filter((t) => normalizeToolOutcomeStatus(t.status) === 'error');
+    const canceled = turnTools.filter((t) => normalizeToolOutcomeStatus(t.status) === 'canceled');
+
+    if (errored.length > 0) {
+      const t = errored[errored.length - 1];
+      request.status = 'error';
+      request.detail = t.target ? `${t.name} → ${t.target}` : `${t.name}: ${t.status}`;
+    } else if (canceled.length > 0) {
+      const t = canceled[canceled.length - 1];
+      request.status = 'canceled';
+      request.detail = t.target ? `${t.name} → ${t.target}` : `${t.name}: ${t.status}`;
+    } else if (
+      signals.lastRole === 'assistant'
+      && (
+        turnTools.some((t) => normalizeToolOutcomeStatus(t.status) === 'ready')
+        || (signals.lastVisibleText && signals.lastVisibleText.length >= 20)
+      )
+    ) {
+      request.status = 'ready';
+      request.detail = signals.lastVisibleText
+        ? signals.lastVisibleText.slice(0, 80)
+        : 'ответ завершён';
+    } else if (signals.lastRole === 'assistant' && lastStepTools.length === 0 && signals.lastVisibleText) {
+      request.status = 'ready';
+      request.detail = signals.lastVisibleText.slice(0, 80);
+    }
+  }
+
+  return { step, request };
+}
+
 function extractSignals(history) {
   let promptTokens = null;
   let lastRole = null;
@@ -283,6 +382,7 @@ function extractSignals(history) {
   const openTools = [];
   const activity = [];
   let lastStepTools = [];
+  let turnTools = [];
 
   if (!Array.isArray(history)) {
     return {
@@ -294,6 +394,7 @@ function extractSignals(history) {
       openTools,
       activity,
       lastStepTools,
+      turnTools,
       lastStepKind: null,
       hasOnlyThinkContent: false,
       isProposal: false,
@@ -303,6 +404,7 @@ function extractSignals(history) {
       pendingConfirmation: [],
       pendingAlign: [],
       overlays: buildOverlaysFromSignals(null),
+      outcomes: buildOutcomesFromSignals(null),
     };
   }
 
@@ -324,6 +426,7 @@ function extractSignals(history) {
     if (message.role === 'user') {
       const cleaned = stripThink(content);
       if (cleaned) lastUserMessage = cleaned.slice(0, 120);
+      turnTools = [];
     }
 
     const stepTools = [];
@@ -343,6 +446,7 @@ function extractSignals(history) {
         };
         stepTools.push(item);
         activity.push(item);
+        turnTools.push(item);
         if (OPEN_TOOL_STATUSES.has(status)) {
           openTools.push(item);
         }
@@ -375,6 +479,7 @@ function extractSignals(history) {
     openTools,
     activity: activity.slice(-12),
     lastStepTools,
+    turnTools,
     lastStepKind: summarizeTools(lastStepTools),
     hasOnlyThinkContent,
     isProposal: proposal.isProposal,
@@ -387,8 +492,9 @@ function extractSignals(history) {
 
   return {
     ...baseSignals,
-    // overlays пересчитываются в agent-status с учётом sessionFresh / processCount
+    // overlays/outcomes пересчитываются в agent-status с учётом свежести сессии
     overlays: buildOverlaysFromSignals(baseSignals, { sessionFresh: true, processCount: 1 }),
+    outcomes: buildOutcomesFromSignals(baseSignals, { turnComplete: true }),
   };
 }
 
@@ -451,7 +557,9 @@ export async function getSessionMetrics(sessionId) {
       planningSnippet: signals.planningSnippet,
       pendingConfirmation: signals.pendingConfirmation,
       pendingAlign: signals.pendingAlign,
+      turnTools: signals.turnTools,
       overlays: signals.overlays,
+      outcomes: signals.outcomes,
       error: null,
     };
   } catch (error) {
