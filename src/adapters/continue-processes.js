@@ -6,8 +6,7 @@ import path from 'node:path';
 const execFileAsync = promisify(execFile);
 
 function isContinueCli(args) {
-  // Проверяем путь к реальному CLI, а не произвольное слово в промпте.
-  return /(?:^|\s)\/home\/[^/\s]+\/\.nvm\/versions\/node\/[^/\s]+\/lib\/node_modules\/@continuedev\/cli\/dist\/cn\.js(?:\s|$)/.test(args);
+  return /\/@continuedev\/cli\/|\/bin\/cn(?:\s|$)/.test(args);
 }
 
 export async function getProcesses() {
@@ -16,7 +15,7 @@ export async function getProcesses() {
   try {
     ({ stdout } = await execFileAsync(
       '/usr/bin/ps',
-      ['-eo', 'pid=,ppid=,user=,stat=,etime=,args='],
+      ['-eo', 'pid=,ppid=,user=,stat=,etime=,%cpu=,%mem=,args='],
       { timeout: 3000, maxBuffer: 2 * 1024 * 1024 }
     ));
   } catch (error) {
@@ -27,11 +26,11 @@ export async function getProcesses() {
 
   for (const line of stdout.split(/\r?\n/)) {
     const match = line.trim().match(
-      /^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/
+      /^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/
     );
     if (!match) continue;
 
-    const [, pidText, ppidText, user, state, elapsed, args] = match;
+    const [, pidText, ppidText, user, state, elapsed, cpu, mem, args] = match;
     if (!isContinueCli(args)) continue;
 
     const pid = Number(pidText);
@@ -40,7 +39,7 @@ export async function getProcesses() {
     try {
       cwd = fs.readlinkSync(`/proc/${pid}/cwd`);
     } catch {
-      // Процесс мог завершиться между проверками.
+      // Процесс мог завершиться
     }
 
     processes.push({
@@ -49,6 +48,9 @@ export async function getProcesses() {
       user,
       state,
       elapsed,
+      cpu: `${cpu}%`,
+      mem: `${mem}%`,
+      isWorking: Number(cpu) > 1.0, // Флаг активности, если нагрузка > 1%
       cwd,
       executable: path.basename(args.split(/\s+/)[0]),
     });

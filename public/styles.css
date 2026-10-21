@@ -301,3 +301,26 @@ button:hover {
 .history-list {
     max-height: 400px;
 }
+
+/* Индикатор активной работы агента (CPU > 1%) */
+.item-card.active-working {
+    border-color: var(--success-color);
+    background-color: rgba(34, 197, 94, 0.05);
+}
+
+.badge-working {
+    background-color: var(--success-color);
+    color: #0f172a;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-left: 8px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}

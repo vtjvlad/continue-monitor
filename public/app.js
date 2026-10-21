@@ -22,6 +22,33 @@ const historySessionsList = document.getElementById('historySessionsList');
 const historyCountBadge = document.getElementById('historyCountBadge');
 const notificationsContainer = document.getElementById('notificationsContainer');
 
+// Генерация звукового сигнала (Web Audio API)
+function playAlertSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // Нота D5
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+        
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+    } catch (e) {
+        // Игнорируем ограничения автовоспроизведения браузера
+    }
+}
+
 // Управление токеном
 function ensureToken() {
     if (!token) {
@@ -50,8 +77,10 @@ toggleDetailsBtn.addEventListener('click', () => {
     toggleDetailsBtn.textContent = isCollapsed ? 'Развернуть детали ▼' : 'Свернуть детали ▲';
 });
 
-// Уведомления (тосты)
+// Уведомления (тосты) со звуком
 function showNotification(message, type = 'info') {
+    playAlertSound();
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
