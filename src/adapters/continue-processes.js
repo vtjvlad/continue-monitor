@@ -50,7 +50,7 @@ export async function getProcesses() {
       elapsed,
       cpu: `${cpu}%`,
       mem: `${mem}%`,
-      isWorking: Number(cpu) > 1.0, // Флаг активности, если нагрузка > 1%
+      isWorking: Number(cpu) > 5.0, // TUI в простое часто ~1–4%; рабочий цикл обычно выше
       cwd,
       executable: path.basename(args.split(/\s+/)[0]),
     });

@@ -3,9 +3,9 @@ const TOKEN_STORAGE_KEY = 'continue_monitor_token';
 let token = localStorage.getItem(TOKEN_STORAGE_KEY);
 let previousProcesses = new Set();
 let previousSessions = new Set();
+let previousStatus = null;
 let isFirstFetch = true;
 
-// DOM Elements
 const apiStatusBadge = document.getElementById('apiStatusBadge');
 const apiStatusText = document.getElementById('apiStatusText');
 const lastUpdateTime = document.getElementById('lastUpdateTime');
@@ -16,40 +16,71 @@ const detailedView = document.getElementById('detailedView');
 
 const activeProcessesCount = document.getElementById('activeProcessesCount');
 const activeSessionsCount = document.getElementById('activeSessionsCount');
+const contextPercentValue = document.getElementById('contextPercentValue');
+const contextPercentSub = document.getElementById('contextPercentSub');
+const contextRing = document.getElementById('contextRing');
+const agentStatusValue = document.getElementById('agentStatusValue');
+const agentStatusSub = document.getElementById('agentStatusSub');
+const agentElapsedValue = document.getElementById('agentElapsedValue');
+const agentModelValue = document.getElementById('agentModelValue');
+const agentTitle = document.getElementById('agentTitle');
+const agentMeta = document.getElementById('agentMeta');
+const agentPulse = document.getElementById('agentPulse');
+const agentLiveCard = document.getElementById('agentLiveCard');
+const phaseTrack = document.getElementById('phaseTrack');
+const overlaysRow = document.getElementById('overlaysRow');
+const overlaysDetail = document.getElementById('overlaysDetail');
+const thinkSnippet = document.getElementById('thinkSnippet');
+const activityFeed = document.getElementById('activityFeed');
+const activityCountBadge = document.getElementById('activityCountBadge');
+
+const OVERLAY_KEYS = ['compacting', 'subagent', 'skills', 'mcp'];
+const OVERLAY_LABELS = {
+    compacting: 'Сжатие',
+    subagent: 'Субагент',
+    skills: 'Skills',
+    mcp: 'MCP',
+};
 const processesList = document.getElementById('processesList');
 const currentSessionsList = document.getElementById('currentSessionsList');
 const historySessionsList = document.getElementById('historySessionsList');
 const historyCountBadge = document.getElementById('historyCountBadge');
 const notificationsContainer = document.getElementById('notificationsContainer');
 
-// Генерация звукового сигнала (Web Audio API)
+const PHASE_ORDER = [
+    'waiting',
+    'thinking',
+    'planning',
+    'reading',
+    'analyzing',
+    'aligning',
+    'awaiting_confirmation',
+    'editing',
+    'running_commands',
+    'responding',
+];
+
 function playAlertSound() {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
-        
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // Нота D5
-        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
-        
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-        
         osc.connect(gain);
         gain.connect(ctx.destination);
-        
         osc.start();
         osc.stop(ctx.currentTime + 0.2);
-    } catch (e) {
-        // Игнорируем ограничения автовоспроизведения браузера
+    } catch {
+        // ignore autoplay limits
     }
 }
 
-// Управление токеном
 function ensureToken() {
     if (!token) {
         token = prompt('Введите MONITOR_TOKEN для доступа к Continue Monitor:');
@@ -71,37 +102,30 @@ tokenBtn.addEventListener('click', () => {
     }
 });
 
-// Развертывание деталей дашборда
 toggleDetailsBtn.addEventListener('click', () => {
     const isCollapsed = detailedView.classList.toggle('collapsed');
     toggleDetailsBtn.textContent = isCollapsed ? 'Развернуть детали ▼' : 'Свернуть детали ▲';
 });
 
-// Уведомления (тосты) со звуком
 function showNotification(message, type = 'info') {
     playAlertSound();
-
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     notificationsContainer.appendChild(toast);
-
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
     }, 5000);
 }
 
-// Запрос статуса
 async function fetchStatus() {
     const currentToken = ensureToken();
     if (!currentToken) return;
 
     try {
         const response = await fetch('./api/status/', {
-            headers: {
-                'Authorization': `Bearer ${currentToken}`
-            }
+            headers: { Authorization: `Bearer ${currentToken}` },
         });
 
         if (response.status === 401) {
@@ -118,9 +142,7 @@ async function fetchStatus() {
         const data = await response.json();
         setApiStatus(true, 'В сети');
         updateDashboard(data);
-
         lastUpdateTime.textContent = new Date(data.collectedAt).toLocaleTimeString();
-
     } catch (error) {
         setApiStatus(false, 'Нет связи');
         console.error('Fetch status error:', error);
@@ -132,42 +154,150 @@ function setApiStatus(isOnline, text) {
     apiStatusText.textContent = text;
 }
 
-// Обновление интерфейса дашборда и диффинг изменений
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g,
+        (tag) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    );
+}
+
+function shortPath(value) {
+    if (!value) return '—';
+    const parts = String(value).split('/').filter(Boolean);
+    if (parts.length <= 3) return value;
+    return `…/${parts.slice(-3).join('/')}`;
+}
+
+function toolStatusClass(status) {
+    if (status === 'done') return 'ok';
+    if (status === 'errored' || status === 'canceled') return 'bad';
+    if (status === 'calling' || status === 'generated') return 'live';
+    return '';
+}
+
+function updatePhaseTrack(phase) {
+    const steps = phaseTrack.querySelectorAll('.phase-step');
+    const idx = PHASE_ORDER.indexOf(phase);
+    steps.forEach((step) => {
+        const stepPhase = step.dataset.phase;
+        const stepIdx = PHASE_ORDER.indexOf(stepPhase);
+        step.classList.toggle('is-active', stepPhase === phase);
+        step.classList.toggle('is-done', idx >= 0 && stepIdx >= 0 && stepIdx < idx);
+    });
+}
+
+function updateOverlays(overlays) {
+    const data = overlays || {};
+    const activeDetails = [];
+
+    OVERLAY_KEYS.forEach((key) => {
+        const chip = overlaysRow?.querySelector(`[data-overlay="${key}"]`);
+        const state = data[key] || { active: false, detail: null };
+        if (chip) {
+            chip.classList.toggle('is-active', Boolean(state.active));
+            chip.title = state.detail || OVERLAY_LABELS[key];
+        }
+        if (state.active) {
+            activeDetails.push(`${OVERLAY_LABELS[key]}: ${state.detail || 'active'}`);
+        }
+    });
+
+    if (overlaysDetail) {
+        overlaysDetail.textContent = activeDetails.join(' · ');
+    }
+}
+
+function renderActivity(activity) {
+    const items = Array.isArray(activity) ? activity.slice().reverse() : [];
+    activityCountBadge.textContent = items.length;
+
+    if (items.length === 0) {
+        activityFeed.innerHTML = '<p class="empty-text">Нет недавних tool-вызовов</p>';
+        return;
+    }
+
+    activityFeed.innerHTML = items.map((item) => `
+        <div class="activity-item ${toolStatusClass(item.status)}">
+            <div class="activity-main">
+                <span class="activity-tool">${escapeHtml(item.name)}</span>
+                <span class="activity-status">${escapeHtml(item.status)}</span>
+            </div>
+            <div class="activity-target">${escapeHtml(shortPath(item.target) || 'без аргументов')}</div>
+        </div>
+    `).join('');
+}
+
+function updateActiveMetrics(active) {
+    const a = active || {};
+    const phase = a.agentStatus || 'idle';
+    const pct = typeof a.contextPercent === 'number' ? a.contextPercent : 0;
+
+    if (typeof a.contextPercent === 'number') {
+        contextPercentValue.textContent = `${a.contextPercent}%`;
+        const tokens = Number.isFinite(a.promptTokens) ? a.promptTokens.toLocaleString('ru-RU') : '—';
+        const limit = Number.isFinite(a.contextLength) ? a.contextLength.toLocaleString('ru-RU') : '—';
+        contextPercentSub.textContent = `${tokens} / ${limit} токенов`;
+    } else {
+        contextPercentValue.textContent = '—';
+        contextPercentSub.textContent = a.processCount > 0 ? 'нет данных usage' : 'нет активного процесса';
+    }
+
+    contextRing.style.setProperty('--pct', String(pct));
+    agentStatusValue.textContent = a.statusLabel || '—';
+    agentStatusSub.textContent = a.agentDetail || '';
+    agentElapsedValue.textContent = a.elapsed || '—';
+    agentModelValue.textContent = a.model || '—';
+    agentTitle.textContent = a.title || (a.processCount ? 'Активный Continue CLI' : 'Нет активной сессии');
+    agentMeta.textContent = [
+        a.workspaceDirectory ? shortPath(a.workspaceDirectory) : null,
+        a.sessionId ? `session ${a.sessionId.slice(0, 8)}` : null,
+        Number.isFinite(a.ageMs) ? `обновлено ${(a.ageMs / 1000).toFixed(1)}с назад` : null,
+    ].filter(Boolean).join(' · ') || '—';
+
+    thinkSnippet.textContent = a.thinkSnippet || (
+        a.processCount > 0 ? 'Думает без сохранённого фрагмента…' : 'Агент пока молчит'
+    );
+
+    agentPulse.dataset.phase = phase;
+    agentLiveCard.dataset.phase = phase;
+    agentLiveCard.classList.toggle('is-live', Boolean(a.isResponding));
+    updatePhaseTrack(phase === 'idle' ? 'waiting' : phase);
+    updateOverlays(a.overlays);
+    renderActivity(a.activity);
+
+    if (!isFirstFetch && previousStatus && previousStatus !== phase && phase !== 'idle') {
+        showNotification(`Агент: ${a.statusLabel}`, phase === 'waiting' ? 'info' : 'success');
+    }
+    previousStatus = phase;
+}
+
 function updateDashboard(data) {
     const processes = data.processes?.processes || [];
     const sessions = data.sessions?.sessions || [];
+    const active = data.active || null;
 
-    // Обновляем метрики
-    activeProcessesCount.textContent = processes.length;
+    activeProcessesCount.textContent = active?.processCount ?? processes.length;
     activeSessionsCount.textContent = sessions.length;
+    updateActiveMetrics(active);
 
-    // Сеты текущих PID и Session ID для проверки появления/завершения
-    const currentPIDs = new Set(processes.map(p => p.pid));
-    const currentSessionIDs = new Set(sessions.map(s => s.id));
+    const currentPIDs = new Set(processes.map((p) => p.pid));
+    const currentSessionIDs = new Set(sessions.map((s) => s.id));
 
     if (!isFirstFetch) {
-        // Проверка процессов
         for (const pid of currentPIDs) {
             if (!previousProcesses.has(pid)) {
-                showNotification(`🚀 Запущен новый процесс Continue CLI (PID: ${pid})`, 'success');
+                showNotification(`Запущен Continue CLI (PID: ${pid})`, 'success');
             }
         }
         for (const pid of previousProcesses) {
             if (!currentPIDs.has(pid)) {
-                showNotification(`🛑 Процесс Continue CLI завершен (PID: ${pid})`, 'danger');
+                showNotification(`Процесс Continue CLI завершён (PID: ${pid})`, 'danger');
             }
         }
-
-        // Проверка сессий
         for (const id of currentSessionIDs) {
             if (!previousSessions.has(id)) {
-                const sess = sessions.find(s => s.id === id);
-                showNotification(`✨ Появилась новая сессия: "${sess?.title || id}"`, 'success');
-            }
-        }
-        for (const id of previousSessions) {
-            if (!currentSessionIDs.has(id)) {
-                showNotification(`📁 Сессия завершена / удалена (ID: ${id.slice(0, 8)}...)`, 'danger');
+                const sess = sessions.find((s) => s.id === id);
+                showNotification(`Новая сессия: "${sess?.title || id}"`, 'success');
             }
         }
     }
@@ -176,69 +306,66 @@ function updateDashboard(data) {
     previousSessions = currentSessionIDs;
     isFirstFetch = false;
 
-    // Рендер процессов
     if (processes.length === 0) {
         processesList.innerHTML = '<p class="empty-text">Нет активных процессов</p>';
     } else {
-        processesList.innerHTML = processes.map(p => `
-            <div class="item-card">
-                <div class="item-title">PID: ${p.pid} (${p.executable})</div>
+        processesList.innerHTML = processes.map((p) => `
+            <div class="item-card${p.isWorking ? ' active-working' : ''}">
+                <div class="item-title">
+                    PID: ${p.pid} (${escapeHtml(p.executable)})
+                    ${p.isWorking ? '<span class="badge-working">работает</span>' : '<span class="badge">простой</span>'}
+                </div>
                 <div class="item-meta">
-                    <span>⏱ Работает: ${p.elapsed}</span>
-                    <span>👤 Пользователь: ${p.user}</span>
-                    <span>📂 Директория: ${p.cwd || 'недоступна'}</span>
+                    <span>⏱ ${escapeHtml(p.elapsed)}</span>
+                    <span>CPU: ${escapeHtml(p.cpu || '—')}</span>
+                    <span>MEM: ${escapeHtml(p.mem || '—')}</span>
+                    <span>📂 ${escapeHtml(p.cwd || 'недоступна')}</span>
                 </div>
             </div>
         `).join('');
     }
 
-    // Рендер текущих сессий (в деталях)
-    if (sessions.length === 0) {
+    const activeId = active?.sessionId;
+    const ordered = [...sessions].sort((a, b) => {
+        if (a.id === activeId) return -1;
+        if (b.id === activeId) return 1;
+        return 0;
+    });
+
+    if (ordered.length === 0) {
         currentSessionsList.innerHTML = '<p class="empty-text">Нет доступных сессий</p>';
     } else {
-        currentSessionsList.innerHTML = sessions.slice(0, 5).map(s => `
-            <div class="item-card">
-                <div class="item-title">${escapeHtml(s.title)}</div>
+        currentSessionsList.innerHTML = ordered.slice(0, 5).map((s) => `
+            <div class="item-card${s.id === activeId ? ' active-working' : ''}">
+                <div class="item-title">${escapeHtml(s.title)}${s.id === activeId ? ' <span class="badge-working">active</span>' : ''}</div>
                 <div class="item-meta">
                     <span>📅 ${s.dateCreated ? new Date(s.dateCreated).toLocaleString() : 'дата не указана'}</span>
                     <span>💬 Сообщений: ${s.messageCount ?? 'N/A'}</span>
+                    <span>📂 ${escapeHtml(shortPath(s.workspaceDirectory))}</span>
                 </div>
             </div>
         `).join('');
     }
 
-    // Рендер истории сессий (в отдельном разворачивающемся блоке)
     historyCountBadge.textContent = sessions.length;
     if (sessions.length === 0) {
         historySessionsList.innerHTML = '<p class="empty-text">История пуста</p>';
     } else {
-        historySessionsList.innerHTML = sessions.map(s => `
+        historySessionsList.innerHTML = sessions.map((s) => `
             <div class="item-card">
                 <div class="item-title">${escapeHtml(s.title)}</div>
                 <div class="item-meta">
-                    <span>ID: ${s.id}</span>
+                    <span>ID: ${escapeHtml(s.id)}</span>
                     <span>📅 ${s.dateCreated ? new Date(s.dateCreated).toLocaleString() : '—'}</span>
-                    <span>💬 Сообщений: ${s.messageCount ?? 'N/A'}</span>
-                    <span>📂 ${s.workspaceDirectory || '—'}</span>
+                    <span>💬 ${s.messageCount ?? 'N/A'}</span>
+                    <span>📂 ${escapeHtml(s.workspaceDirectory || '—')}</span>
                 </div>
             </div>
         `).join('');
     }
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-    );
-}
-
-// События
 refreshBtn.addEventListener('click', fetchStatus);
-
-// Инициализация при загрузке
 ensureToken();
 fetchStatus();
-
-// Автообновление каждые 6 секунд
-setInterval(fetchStatus, 6000);
+setInterval(fetchStatus, 3000);

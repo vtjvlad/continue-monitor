@@ -9,7 +9,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Меню контроля -->
         <header class="control-menu">
             <div class="brand">
                 <h1>Continue Monitor</h1>
@@ -27,31 +26,109 @@
             </div>
         </header>
 
-        <!-- Контейнер уведомлений -->
         <div id="notificationsContainer" class="notifications-container"></div>
 
-        <!-- Основной дашборд -->
         <main class="dashboard-grid">
-            <!-- Главный виджет: Статус и метрики текущих сессий и процессов -->
-            <section class="card main-metric-card">
-                <div class="card-header">
-                    <h2>Текущее состояние</h2>
-                    <button id="toggleDetailsBtn" class="btn-text">Развернуть детали ▼</button>
-                </div>
-                
-                <!-- Метрики -->
-                <div class="metrics-row">
-                    <div class="metric-box">
-                        <span class="metric-value" id="activeProcessesCount">0</span>
-                        <span class="metric-label">Активные процессы</span>
+            <section class="card agent-live-card" id="agentLiveCard">
+                <div class="agent-live-header">
+                    <div>
+                        <p class="eyebrow">Живой агент</p>
+                        <h2 id="agentTitle">Нет активной сессии</h2>
+                        <p class="agent-meta" id="agentMeta">—</p>
                     </div>
-                    <div class="metric-box">
-                        <span class="metric-value" id="activeSessionsCount">0</span>
-                        <span class="metric-label">Сессии (всего)</span>
+                    <div class="agent-pulse" id="agentPulse" data-phase="idle">
+                        <span class="pulse-ring"></span>
+                        <span class="pulse-core" id="agentStatusValue">—</span>
                     </div>
                 </div>
 
-                <!-- Подробности при развороте -->
+                <div class="phase-track" id="phaseTrack" aria-label="Фазы работы агента">
+                    <div class="phase-step" data-phase="waiting"><span>Ожидает</span></div>
+                    <div class="phase-step" data-phase="thinking"><span>Размышляет</span></div>
+                    <div class="phase-step" data-phase="planning"><span>Планирует</span></div>
+                    <div class="phase-step" data-phase="reading"><span>Читает</span></div>
+                    <div class="phase-step" data-phase="analyzing"><span>Анализирует</span></div>
+                    <div class="phase-step" data-phase="aligning"><span>Согласует</span></div>
+                    <div class="phase-step" data-phase="awaiting_confirmation"><span>Подтверждение</span></div>
+                    <div class="phase-step" data-phase="editing"><span>Редактирует</span></div>
+                    <div class="phase-step" data-phase="running_commands"><span>Команды</span></div>
+                    <div class="phase-step" data-phase="responding"><span>Отвечает</span></div>
+                </div>
+
+                <div class="overlays-panel" aria-label="Параллельные режимы">
+                    <div class="overlays-label">Параллельно</div>
+                    <div class="overlays-row" id="overlaysRow">
+                        <div class="overlay-chip" data-overlay="compacting" title="Сжатие контекста">
+                            <span class="overlay-dot"></span>
+                            <span class="overlay-name">Сжатие</span>
+                        </div>
+                        <div class="overlay-chip" data-overlay="subagent" title="Вложенный субагент">
+                            <span class="overlay-dot"></span>
+                            <span class="overlay-name">Субагент</span>
+                        </div>
+                        <div class="overlay-chip" data-overlay="skills" title="Skills">
+                            <span class="overlay-dot"></span>
+                            <span class="overlay-name">Skills</span>
+                        </div>
+                        <div class="overlay-chip" data-overlay="mcp" title="MCP tools">
+                            <span class="overlay-dot"></span>
+                            <span class="overlay-name">MCP</span>
+                        </div>
+                    </div>
+                    <p class="overlays-detail" id="overlaysDetail"></p>
+                </div>
+
+                <div class="agent-grid">
+                    <div class="context-panel">
+                        <div class="context-ring" id="contextRing" style="--pct: 0">
+                            <div class="context-ring-inner">
+                                <span class="metric-value" id="contextPercentValue">—</span>
+                                <span class="metric-label">контекст</span>
+                            </div>
+                        </div>
+                        <p class="metric-sub" id="contextPercentSub">нет данных</p>
+                    </div>
+
+                    <div class="agent-stats">
+                        <div class="stat-chip">
+                            <span class="stat-label">Процессы</span>
+                            <span class="stat-value" id="activeProcessesCount">0</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-label">Время CLI</span>
+                            <span class="stat-value" id="agentElapsedValue">—</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-label">Модель</span>
+                            <span class="stat-value stat-value-sm" id="agentModelValue">—</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-label">Сессии</span>
+                            <span class="stat-value" id="activeSessionsCount">0</span>
+                        </div>
+                    </div>
+
+                    <div class="thought-panel">
+                        <h3>Сейчас думает</h3>
+                        <p id="thinkSnippet">Агент пока молчит</p>
+                        <p class="agent-detail" id="agentStatusSub"></p>
+                    </div>
+                </div>
+
+                <div class="activity-panel">
+                    <div class="activity-header">
+                        <h3>Лента действий</h3>
+                        <span class="badge" id="activityCountBadge">0</span>
+                    </div>
+                    <div id="activityFeed" class="activity-feed">
+                        <p class="empty-text">Нет недавних tool-вызовов</p>
+                    </div>
+                </div>
+
+                <div class="card-footer-actions">
+                    <button id="toggleDetailsBtn" class="btn-text">Развернуть детали ▼</button>
+                </div>
+
                 <div id="detailedView" class="detailed-view collapsed">
                     <div class="detail-section">
                         <h3>Активные процессы Continue CLI</h3>
@@ -68,11 +145,10 @@
                 </div>
             </section>
 
-            <!-- История сессий (компактно свернута, разворачиваемый див) -->
             <section class="card history-card">
                 <details id="historyDetails">
                     <summary class="history-summary">
-                        <span>📖 История сессий</span>
+                        <span>История сессий</span>
                         <span class="badge" id="historyCountBadge">0</span>
                     </summary>
                     <div class="history-content">

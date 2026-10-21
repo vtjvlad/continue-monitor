@@ -19,6 +19,8 @@ export const config = Object.freeze({
   token: process.env.MONITOR_TOKEN || '',
   sessionsDir: path.join(os.homedir(), '.continue', 'sessions'),
   sessionsIndex: path.join(os.homedir(), '.continue', 'sessions', 'sessions.json'),
+  continueConfig: path.join(os.homedir(), '.continue', 'config.yaml'),
+  globalContext: path.join(os.homedir(), '.continue', 'index', 'globalContext.json'),
 });
 
 if (!config.token || config.token.length < 32) {
