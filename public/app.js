@@ -25,11 +25,11 @@ const agentElapsedValue = document.getElementById('agentElapsedValue');
 const agentModelValue = document.getElementById('agentModelValue');
 const agentTitle = document.getElementById('agentTitle');
 const agentMeta = document.getElementById('agentMeta');
-const agentPulse = document.getElementById('agentPulse');
 const agentLiveCard = document.getElementById('agentLiveCard');
 const phaseStack = document.getElementById('phaseStack');
 const phaseTrack = document.getElementById('phaseTrack');
 const overlaysRow = document.getElementById('overlaysRow');
+const overlaysCoverRow = document.getElementById('overlaysCoverRow');
 const overlaysDetail = document.getElementById('overlaysDetail');
 const stepOutcomesRow = document.getElementById('stepOutcomesRow');
 const requestOutcomesRow = document.getElementById('requestOutcomesRow');
@@ -47,11 +47,6 @@ const OVERLAY_LABELS = {
     mcp: 'MCP',
 };
 const OUTCOME_KEYS = ['ready', 'canceled', 'error'];
-const OUTCOME_LABELS = {
-    ready: 'Ready',
-    canceled: 'Canceled',
-    error: 'Error',
-};
 const processesList = document.getElementById('processesList');
 const currentSessionsList = document.getElementById('currentSessionsList');
 const historySessionsList = document.getElementById('historySessionsList');
@@ -148,8 +143,9 @@ async function fetchStatus() {
 }
 
 function setApiStatus(isOnline, text) {
-    apiStatusBadge.className = `api-status-badge ${isOnline ? 'online' : 'offline'}`;
+    apiStatusBadge.className = `status ${isOnline ? 'online' : 'offline'}`;
     apiStatusText.textContent = text;
+    document.body.dataset.api = isOnline ? 'online' : 'offline';
 }
 
 function escapeHtml(str) {
@@ -173,34 +169,50 @@ function toolStatusClass(status) {
     return '';
 }
 
+function feedStatusClass(status) {
+    if (status === 'done') return 'done';
+    if (status === 'errored' || status === 'canceled') return 'err';
+    return '';
+}
+
 function updatePhaseTrack(phase) {
     if (!phaseTrack) return;
-    const steps = phaseTrack.querySelectorAll('.phase-step');
+    const steps = phaseTrack.querySelectorAll('.phase');
     steps.forEach((step) => {
         const isActive = step.dataset.phase === phase;
         step.classList.toggle('is-active', isActive);
+        step.classList.toggle('active', isActive);
         step.classList.remove('is-done');
     });
+}
+
+function syncOverlayChips(root, data, activeDetails) {
+    let anyActive = false;
+    OVERLAY_KEYS.forEach((key) => {
+        const chip = root?.querySelector(`[data-overlay="${key}"]`);
+        const state = data[key] || { active: false, detail: null };
+        const active = Boolean(state.active);
+        if (chip) {
+            chip.classList.toggle('is-active', active);
+            chip.classList.toggle('active', active);
+            chip.title = state.detail || OVERLAY_LABELS[key];
+        }
+        if (active) {
+            anyActive = true;
+            if (activeDetails) {
+                activeDetails.push(`${OVERLAY_LABELS[key]}: ${state.detail || 'active'}`);
+            }
+        }
+    });
+    return anyActive;
 }
 
 function updateOverlays(overlays) {
     const data = overlays || {};
     const activeDetails = [];
-    let anyActive = false;
-
-    OVERLAY_KEYS.forEach((key) => {
-        const chip = overlaysRow?.querySelector(`[data-overlay="${key}"]`);
-        const state = data[key] || { active: false, detail: null };
-        const active = Boolean(state.active);
-        if (chip) {
-            chip.classList.toggle('is-active', active);
-            chip.title = state.detail || OVERLAY_LABELS[key];
-        }
-        if (active) {
-            anyActive = true;
-            activeDetails.push(`${OVERLAY_LABELS[key]}: ${state.detail || 'active'}`);
-        }
-    });
+    const rowActive = syncOverlayChips(overlaysRow, data, activeDetails);
+    const coverActive = syncOverlayChips(overlaysCoverRow, data, null);
+    const anyActive = rowActive || coverActive;
 
     phaseStack?.classList.toggle('has-overlays', anyActive);
 
@@ -216,6 +228,7 @@ function setOutcomeRow(row, status, counts = null) {
         if (!chip) return;
         const count = counts && Number.isFinite(counts[key]) ? counts[key] : null;
         chip.classList.toggle('is-active', key === status);
+        chip.classList.toggle(key, key === status);
         if (count !== null) {
             chip.classList.toggle('has-count', count > 0);
             const countEl = chip.querySelector(`[data-count="${key}"]`) || chip.querySelector('.outcome-count');
@@ -257,10 +270,10 @@ function renderActivity(activity) {
     }
 
     activityFeed.innerHTML = items.map((item) => `
-        <div class="activity-item ${toolStatusClass(item.status)}">
+        <div class="activity-item feed-item ${toolStatusClass(item.status)}">
             <div class="activity-main">
-                <span class="activity-tool">${escapeHtml(item.name)}</span>
-                <span class="activity-status">${escapeHtml(item.status)}</span>
+                <span class="activity-tool feed-name">${escapeHtml(item.name)}</span>
+                <span class="activity-status feed-status ${feedStatusClass(item.status)}">${escapeHtml(item.status)}</span>
             </div>
             <div class="activity-target">${escapeHtml(shortPath(item.target) || 'без аргументов')}</div>
         </div>
@@ -298,7 +311,6 @@ function updateActiveMetrics(active) {
         a.processCount > 0 ? 'Думает без сохранённого фрагмента…' : 'Агент пока молчит'
     );
 
-    agentPulse.dataset.phase = phase;
     agentLiveCard.dataset.phase = phase;
     agentLiveCard.classList.toggle('is-live', Boolean(a.isResponding));
     updatePhaseTrack(phase === 'idle' ? 'waiting' : phase);

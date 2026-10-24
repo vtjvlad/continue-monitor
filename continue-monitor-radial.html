@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Continue Monitor — Radial</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --card: #12151c;
+    --card2: #181c26;
+    --border: #2a3142;
+    --text: #e8eaef;
+    --muted: #8b93a7;
+    --accent: #a78bfa;
+    --accent2: #818cf8;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --purple: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 16px 16px 40px;
+    min-height: 100vh;
+  }
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 650;
+    font-size: 18px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green);
+  }
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .token-btn {
+    background: #1e2433;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* Session */
+  .session {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .session-label {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .session-title {
+    font-size: 20px;
+    font-weight: 650;
+    margin-bottom: 4px;
+  }
+  .session-meta {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  /* Radial area */
+  .radial-wrap {
+    position: relative;
+    height: 420px;
+    margin: 10px 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .context-ring {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) 0% 5%, #1f2433 5% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 0 40px rgba(167, 139, 250, 0.15);
+  }
+  .context-ring::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    background: var(--card);
+    border-radius: 50%;
+  }
+  .context-inner {
+    position: relative;
+    text-align: center;
+    z-index: 1;
+  }
+  .context-pct {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .context-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 0.5px;
+  }
+  .tokens {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  /* Phase nodes */
+  .phase {
+    position: absolute;
+    background: #1a1f2c;
+    border: 1px solid #2d3548;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.25s ease;
+    z-index: 3;
+  }
+  .phase.active {
+    background: rgba(167, 139, 250, 0.18);
+    color: #ddd6fe;
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(167, 139, 250, 0.35);
+  }
+  .phase.top { top: 8px; left: 50%; transform: translateX(-50%); }
+  .phase.tl { top: 48px; left: 12px; }
+  .phase.tr { top: 48px; right: 12px; }
+  .phase.ml { top: 130px; left: 0; }
+  .phase.mr { top: 130px; right: 0; }
+  .phase.bl { bottom: 70px; left: 18px; }
+  .phase.br { bottom: 70px; right: 18px; }
+  .phase.bb { bottom: 18px; left: 50%; transform: translateX(-50%); }
+  /* Parallel */
+  .parallel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .parallel-title {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: #1a1f2c;
+    border: 1px solid #2d3548;
+    padding: 5px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .chip.active {
+    background: rgba(167, 139, 250, 0.15);
+    color: #c4b5fd;
+    border-color: var(--purple);
+  }
+  /* Info cards */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .card-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .card-value {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  /* Thinking */
+  .thinking {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .thinking-title {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .thinking-text {
+    font-size: 14px;
+    line-height: 1.45;
+    color: #d1d5db;
+  }
+  /* Request / Step */
+  .outcomes {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .out {
+    flex: 1;
+    text-align: center;
+    padding: 6px 0;
+    border-radius: 10px;
+    font-size: 12px;
+    background: #1a1f2c;
+    border: 1px solid #2d3548;
+  }
+  .out.ready { color: var(--green); border-color: rgba(52,211,153,0.4); }
+  .out.error { color: var(--red); border-color: rgba(248,113,113,0.5); background: rgba(248,113,113,0.08); }
+  .out.canceled { color: var(--amber); }
+  /* Feed */
+  .feed {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+  }
+  .feed-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #222735;
+    font-size: 13px;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-name { color: var(--text); }
+  .feed-status { font-size: 11px; color: var(--muted); }
+  .feed-status.done { color: var(--green); }
+  .feed-status.err { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      Continue Monitor
+    </div>
+    <div class="status">
+      <span style="color:var(--green)">●</span> В сети
+    </div>
+  </div>
+
+  <div class="session">
+    <div class="session-label">Живой агент</div>
+    <div class="session-title">давай</div>
+    <div class="session-meta">…/ubuntu/server/test · session ab3e8a8c</div>
+  </div>
+
+  <div class="radial-wrap">
+    <div class="context-ring">
+      <div class="context-inner">
+        <div class="context-pct">5%</div>
+        <div class="context-label">контекст</div>
+      </div>
+      <div class="tokens">10 342 / 200 000 токенов</div>
+    </div>
+
+    <!-- Phases arranged around the ring -->
+    <div class="phase top active">Ожидает вывода</div>
+    <div class="phase tl">Ожидает</div>
+    <div class="phase tr">Размышляет</div>
+    <div class="phase ml">Планирует</div>
+    <div class="phase mr">Читает</div>
+    <div class="phase bl">Анализирует</div>
+    <div class="phase br">Согласует</div>
+    <div class="phase bb">Подтверждение</div>
+  </div>
+
+  <div class="parallel">
+    <div class="parallel-title">ПАРАЛЛЕЛЬНО</div>
+    <div class="chips">
+      <div class="chip">Сжатие</div>
+      <div class="chip">Субагент</div>
+      <div class="chip">Skills</div>
+      <div class="chip active">MCP</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">Процессы</div>
+      <div class="card-value">1</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Время CLI</div>
+      <div class="card-value">06:42</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Модель</div>
+      <div class="card-value">MiniMax-M2.7</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Сессии</div>
+      <div class="card-value">19</div>
+    </div>
+  </div>
+
+  <div class="thinking">
+    <div class="thinking-title">Сейчас думает</div>
+    <div class="thinking-text">
+      Пользователь хочет, чтобы я открыл дашборд. Я могу использовать Bash для открытия браузера. Также нужно проверить статус сервиса и попробовать найти токен.
+    </div>
+    <div class="outcomes">
+      <div class="out ready">Ready</div>
+      <div class="out canceled">Canceled</div>
+      <div class="out error">Error</div>
+    </div>
+  </div>
+
+  <div class="feed">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Лента действий</div>
+    <div class="feed-item">
+      <span class="feed-name">Bash</span>
+      <span class="feed-status done">done</span>
+    </div>
+    <div class="feed-item">
+      <span class="feed-name">Read</span>
+      <span class="feed-status err">errored</span>
+    </div>
+    <div class="feed-item">
+      <span class="feed-name">Bash</span>
+      <span class="feed-status done">done</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

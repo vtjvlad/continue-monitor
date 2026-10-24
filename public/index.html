@@ -2,197 +2,178 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Continue Monitor Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Continue Monitor</title>
     <link rel="stylesheet" href="./styles.css">
     <script src="./app.js" defer></script>
 </head>
 <body>
-    <div class="app-container">
-        <header class="control-menu">
-            <div class="brand">
-                <h1>Continue Monitor</h1>
+    <div class="app" id="agentLiveCard" data-phase="idle">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-dot" id="apiStatusDot"></span>
+                Continue Monitor
             </div>
-            <div class="controls-right">
-                <div class="api-status-badge" id="apiStatusBadge">
-                    <span class="status-dot"></span>
-                    <span id="apiStatusText">Проверка API...</span>
+            <div class="header-right">
+                <div class="status" id="apiStatusBadge">
+                    <span id="apiStatusText">Проверка…</span>
                 </div>
-                <div class="last-update">
-                    Обновлено: <span id="lastUpdateTime">—</span>
-                </div>
-                <button id="refreshBtn" class="btn-icon" title="Обновить вручную">🔄</button>
-                <button id="tokenBtn" class="btn-secondary" title="Сменить токен">🔑 Токен</button>
+                <span class="last-update">Обн. <span id="lastUpdateTime">—</span></span>
+                <button type="button" id="refreshBtn" class="icon-btn" title="Обновить">↻</button>
+                <button type="button" id="tokenBtn" class="token-btn" title="Сменить токен">Токен</button>
             </div>
         </header>
 
         <div id="notificationsContainer" class="notifications-container"></div>
 
-        <main class="dashboard-grid">
-            <section class="card agent-live-card" id="agentLiveCard">
-                <div class="agent-live-header">
-                    <div>
-                        <p class="eyebrow">Живой агент</p>
-                        <h2 id="agentTitle">Нет активной сессии</h2>
-                        <p class="agent-meta" id="agentMeta">—</p>
-                    </div>
-                    <div class="agent-pulse" id="agentPulse" data-phase="idle">
-                        <span class="pulse-ring"></span>
-                        <span class="pulse-core" id="agentStatusValue">—</span>
-                    </div>
+        <section class="session">
+            <div class="session-label">Живой агент</div>
+            <div class="session-title" id="agentTitle">Нет активной сессии</div>
+            <div class="session-meta" id="agentMeta">—</div>
+            <div class="session-status" id="agentStatusValue">—</div>
+        </section>
+
+        <div class="radial-wrap" id="phaseStack" aria-label="Фазы и контекст">
+            <div class="overlays-underlay" id="overlaysUnderlay" aria-hidden="true">
+                <div class="overlays-row" id="overlaysCoverRow">
+                    <div class="overlay-chip" data-overlay="compacting"><span class="overlay-dot"></span><span>Сжатие</span></div>
+                    <div class="overlay-chip" data-overlay="subagent"><span class="overlay-dot"></span><span>Субагент</span></div>
+                    <div class="overlay-chip" data-overlay="skills"><span class="overlay-dot"></span><span>Skills</span></div>
+                    <div class="overlay-chip" data-overlay="mcp"><span class="overlay-dot"></span><span>MCP</span></div>
                 </div>
+                <p class="overlays-detail" id="overlaysDetail"></p>
+            </div>
 
-                <div class="phase-stack" id="phaseStack" aria-label="Фазы и параллельные режимы">
-                    <div class="overlays-underlay" id="overlaysUnderlay" aria-hidden="true">
-                        <div class="overlays-row" id="overlaysRow">
-                            <div class="overlay-chip" data-overlay="compacting" title="Сжатие контекста">
-                                <span class="overlay-dot"></span>
-                                <span class="overlay-name">Сжатие</span>
-                            </div>
-                            <div class="overlay-chip" data-overlay="subagent" title="Вложенный субагент">
-                                <span class="overlay-dot"></span>
-                                <span class="overlay-name">Субагент</span>
-                            </div>
-                            <div class="overlay-chip" data-overlay="skills" title="Skills">
-                                <span class="overlay-dot"></span>
-                                <span class="overlay-name">Skills</span>
-                            </div>
-                            <div class="overlay-chip" data-overlay="mcp" title="MCP tools">
-                                <span class="overlay-dot"></span>
-                                <span class="overlay-name">MCP</span>
-                            </div>
-                        </div>
-                        <p class="overlays-detail" id="overlaysDetail"></p>
-                    </div>
-                    <div class="phase-track" id="phaseTrack" aria-label="Текущая фаза агента">
-                        <div class="phase-step" data-phase="waiting"><span>Ожидает</span></div>
-                        <div class="phase-step" data-phase="thinking"><span>Размышляет</span></div>
-                        <div class="phase-step" data-phase="planning"><span>Планирует</span></div>
-                        <div class="phase-step" data-phase="reading"><span>Читает</span></div>
-                        <div class="phase-step" data-phase="analyzing"><span>Анализирует</span></div>
-                        <div class="phase-step" data-phase="aligning"><span>Согласует</span></div>
-                        <div class="phase-step" data-phase="awaiting_confirmation"><span>Подтверждение</span></div>
-                        <div class="phase-step" data-phase="editing"><span>Редактирует</span></div>
-                        <div class="phase-step" data-phase="running_commands"><span>Команды</span></div>
-                        <div class="phase-step" data-phase="responding"><span>Отвечает</span></div>
-                    </div>
+            <div class="context-ring" id="contextRing" style="--pct: 0">
+                <div class="context-inner">
+                    <div class="context-pct" id="contextPercentValue">—</div>
+                    <div class="context-label">контекст</div>
                 </div>
+                <div class="tokens" id="contextPercentSub">нет данных</div>
+            </div>
 
-                <div class="request-outcomes-panel" aria-label="Исход запроса">
-                    <div class="outcomes-label">Запрос</div>
-                    <div class="outcomes-row" id="requestOutcomesRow">
-                        <div class="outcome-chip" data-outcome="ready"><span class="outcome-dot"></span><span>Ready</span></div>
-                        <div class="outcome-chip" data-outcome="canceled"><span class="outcome-dot"></span><span>Canceled</span></div>
-                        <div class="outcome-chip" data-outcome="error"><span class="outcome-dot"></span><span>Error</span></div>
-                    </div>
-                    <p class="outcomes-detail" id="requestOutcomesDetail"></p>
+            <div class="phase-orbit" id="phaseTrack" aria-label="Текущая фаза агента">
+                <div class="phase" data-phase="waiting" style="--i: 0"><span>Ожидает</span></div>
+                <div class="phase" data-phase="thinking" style="--i: 1"><span>Размышляет</span></div>
+                <div class="phase" data-phase="planning" style="--i: 2"><span>Планирует</span></div>
+                <div class="phase" data-phase="reading" style="--i: 3"><span>Читает</span></div>
+                <div class="phase" data-phase="analyzing" style="--i: 4"><span>Анализирует</span></div>
+                <div class="phase" data-phase="aligning" style="--i: 5"><span>Согласует</span></div>
+                <div class="phase" data-phase="awaiting_confirmation" style="--i: 6"><span>Подтверждение</span></div>
+                <div class="phase" data-phase="editing" style="--i: 7"><span>Редактирует</span></div>
+                <div class="phase" data-phase="running_commands" style="--i: 8"><span>Команды</span></div>
+                <div class="phase" data-phase="responding" style="--i: 9"><span>Отвечает</span></div>
+            </div>
+        </div>
+
+        <section class="parallel" aria-label="Параллельные режимы">
+            <div class="parallel-title">Параллельно</div>
+            <div class="chips" id="overlaysRow">
+                <div class="chip" data-overlay="compacting" title="Сжатие контекста">Сжатие</div>
+                <div class="chip" data-overlay="subagent" title="Вложенный субагент">Субагент</div>
+                <div class="chip" data-overlay="skills" title="Skills">Skills</div>
+                <div class="chip" data-overlay="mcp" title="MCP tools">MCP</div>
+            </div>
+        </section>
+
+        <section class="request-outcomes-panel" aria-label="Исход запроса">
+            <div class="outcomes-label">Запрос</div>
+            <div class="outcomes" id="requestOutcomesRow">
+                <div class="out" data-outcome="ready">Ready</div>
+                <div class="out" data-outcome="canceled">Canceled</div>
+                <div class="out" data-outcome="error">Error</div>
+            </div>
+            <p class="outcomes-detail" id="requestOutcomesDetail"></p>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-label">Процессы</div>
+                <div class="card-value" id="activeProcessesCount">0</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Время CLI</div>
+                <div class="card-value" id="agentElapsedValue">—</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Модель</div>
+                <div class="card-value card-value-sm" id="agentModelValue">—</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Сессии</div>
+                <div class="card-value" id="activeSessionsCount">0</div>
+            </div>
+        </div>
+
+        <section class="thinking">
+            <div class="thinking-title">Сейчас думает</div>
+            <p class="thinking-text" id="thinkSnippet">Агент пока молчит</p>
+            <p class="agent-detail" id="agentStatusSub"></p>
+        </section>
+
+        <div class="activity-layout">
+            <section class="feed">
+                <div class="feed-header">
+                    <span>Лента действий</span>
+                    <span class="badge" id="activityCountBadge">0</span>
                 </div>
-
-                <div class="agent-grid">
-                    <div class="context-panel">
-                        <div class="context-ring" id="contextRing" style="--pct: 0">
-                            <div class="context-ring-inner">
-                                <span class="metric-value" id="contextPercentValue">—</span>
-                                <span class="metric-label">контекст</span>
-                            </div>
-                        </div>
-                        <p class="metric-sub" id="contextPercentSub">нет данных</p>
-                    </div>
-
-                    <div class="agent-stats">
-                        <div class="stat-chip">
-                            <span class="stat-label">Процессы</span>
-                            <span class="stat-value" id="activeProcessesCount">0</span>
-                        </div>
-                        <div class="stat-chip">
-                            <span class="stat-label">Время CLI</span>
-                            <span class="stat-value" id="agentElapsedValue">—</span>
-                        </div>
-                        <div class="stat-chip">
-                            <span class="stat-label">Модель</span>
-                            <span class="stat-value stat-value-sm" id="agentModelValue">—</span>
-                        </div>
-                        <div class="stat-chip">
-                            <span class="stat-label">Сессии</span>
-                            <span class="stat-value" id="activeSessionsCount">0</span>
-                        </div>
-                    </div>
-
-                    <div class="thought-panel">
-                        <h3>Сейчас думает</h3>
-                        <p id="thinkSnippet">Агент пока молчит</p>
-                        <p class="agent-detail" id="agentStatusSub"></p>
-                    </div>
-                </div>
-
-                <div class="activity-layout">
-                    <div class="activity-panel">
-                        <div class="activity-header">
-                            <h3>Лента действий</h3>
-                            <span class="badge" id="activityCountBadge">0</span>
-                        </div>
-                        <div id="activityFeed" class="activity-feed">
-                            <p class="empty-text">Нет недавних tool-вызовов</p>
-                        </div>
-                    </div>
-
-                    <aside class="step-outcomes-panel" aria-label="Исходы шагов">
-                        <div class="outcomes-label">Шаг</div>
-                        <div class="outcomes-row outcomes-row-vertical" id="stepOutcomesRow">
-                            <div class="outcome-chip" data-outcome="ready">
-                                <span class="outcome-dot"></span>
-                                <span class="outcome-name">Ready</span>
-                                <span class="outcome-count" data-count="ready">0</span>
-                            </div>
-                            <div class="outcome-chip" data-outcome="canceled">
-                                <span class="outcome-dot"></span>
-                                <span class="outcome-name">Canceled</span>
-                                <span class="outcome-count" data-count="canceled">0</span>
-                            </div>
-                            <div class="outcome-chip" data-outcome="error">
-                                <span class="outcome-dot"></span>
-                                <span class="outcome-name">Error</span>
-                                <span class="outcome-count" data-count="error">0</span>
-                            </div>
-                        </div>
-                        <p class="outcomes-detail" id="stepOutcomesDetail"></p>
-                    </aside>
-                </div>
-
-                <div class="card-footer-actions">
-                    <button id="toggleDetailsBtn" class="btn-text">Развернуть детали ▼</button>
-                </div>
-
-                <div id="detailedView" class="detailed-view collapsed">
-                    <div class="detail-section">
-                        <h3>Активные процессы Continue CLI</h3>
-                        <div id="processesList" class="items-list">
-                            <p class="empty-text">Нет активных процессов</p>
-                        </div>
-                    </div>
-                    <div class="detail-section">
-                        <h3>Текущие сессии</h3>
-                        <div id="currentSessionsList" class="items-list">
-                            <p class="empty-text">Нет доступных сессий</p>
-                        </div>
-                    </div>
+                <div id="activityFeed">
+                    <p class="empty-text">Нет недавних tool-вызовов</p>
                 </div>
             </section>
 
-            <section class="card history-card">
-                <details id="historyDetails">
-                    <summary class="history-summary">
-                        <span>История сессий</span>
-                        <span class="badge" id="historyCountBadge">0</span>
-                    </summary>
-                    <div class="history-content">
-                        <div id="historySessionsList" class="items-list history-list">
-                            <p class="empty-text">История пуста</p>
-                        </div>
+            <aside class="step-outcomes-panel" aria-label="Исходы шагов">
+                <div class="outcomes-label">Шаг</div>
+                <div class="step-outcomes" id="stepOutcomesRow">
+                    <div class="out" data-outcome="ready">
+                        <span>Ready</span>
+                        <span class="outcome-count" data-count="ready">0</span>
                     </div>
-                </details>
-            </section>
-        </main>
+                    <div class="out" data-outcome="canceled">
+                        <span>Canceled</span>
+                        <span class="outcome-count" data-count="canceled">0</span>
+                    </div>
+                    <div class="out" data-outcome="error">
+                        <span>Error</span>
+                        <span class="outcome-count" data-count="error">0</span>
+                    </div>
+                </div>
+                <p class="outcomes-detail" id="stepOutcomesDetail"></p>
+            </aside>
+        </div>
+
+        <div class="card-footer-actions">
+            <button type="button" id="toggleDetailsBtn" class="btn-text">Развернуть детали ▼</button>
+        </div>
+
+        <div id="detailedView" class="detailed-view collapsed">
+            <div class="detail-section">
+                <h3>Активные процессы Continue CLI</h3>
+                <div id="processesList" class="items-list">
+                    <p class="empty-text">Нет активных процессов</p>
+                </div>
+            </div>
+            <div class="detail-section">
+                <h3>Текущие сессии</h3>
+                <div id="currentSessionsList" class="items-list">
+                    <p class="empty-text">Нет доступных сессий</p>
+                </div>
+            </div>
+        </div>
+
+        <section class="history-card">
+            <details id="historyDetails">
+                <summary class="history-summary">
+                    <span>История сессий</span>
+                    <span class="badge" id="historyCountBadge">0</span>
+                </summary>
+                <div class="history-content">
+                    <div id="historySessionsList" class="items-list history-list">
+                        <p class="empty-text">История пуста</p>
+                    </div>
+                </div>
+            </details>
+        </section>
     </div>
 </body>
 </html>
